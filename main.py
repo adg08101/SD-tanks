@@ -40,7 +40,7 @@ def main_proc(p_host=HOST, p_user=USER, p_password=PASSWORD, p_db=DB, p_port=POR
 
         for organization in range(len(organizations)):
             sql = "SELECT ACCT_ID FROM " + organizations[organization]['sd_db_source'] + ".tanks AS t WHERE " \
-                                                                                    "t.TANK_ID IS NOT NULL LIMIT 1; "
+                                                                                         "t.TANK_ID IS NOT NULL LIMIT 1; "
 
             try:
                 cursor.execute(sql)
@@ -85,19 +85,42 @@ def main_proc(p_host=HOST, p_user=USER, p_password=PASSWORD, p_db=DB, p_port=POR
                                          cursorclass=pymysql.cursors.DictCursor)
         NEW_CONNECTION = new_connection
 
-    show_branches(connection, NEW_CONNECTION, org_db)
+    proc(connection, NEW_CONNECTION, org_db)
 
 
-def show_branches(connection, new_connection, org_db):
-    sql = "SELECT b.BRANCH_NAME FROM " + org_db + ".branch AS b " \
-        "INNER JOIN " + org_db + ".account AS a ON a.BRANCH_ID = b.BRANCH_ID " \
-        "INNER JOIN " + org_db + ".tanks AS t ON a.ACCT_ID = t.ACCT_ID " \
-        "GROUP BY b.BRANCH_NAME "
+def proc(connection, new_connection, org_db):
+    sql = "SELECT b.BRANCH_ID, b.BRANCH_NAME FROM " + org_db + ".branch AS b " \
+          "INNER JOIN " + org_db + ".account AS a ON a.BRANCH_ID = b.BRANCH_ID " \
+          "INNER JOIN " + org_db + ".tanks AS t ON a.ACCT_ID = t.ACCT_ID " \
+          "GROUP BY b.BRANCH_NAME "
+
     branches = panda.read_sql(sql, new_connection)
-    print(branches)
+
+    print(branches['BRANCH_NAME'])
+
     branch = get_input("Select Branch", 0, len(branches) - 1)
-    print(type(branches))
-    print(branch)
+
+    print("Selected branch:", branches['BRANCH_NAME'].iat[branch])
+
+    partial_account = input("Enter Account ID: ")
+
+    sql = "SELECT concat(c.CST_ID, a.ACCOUNT_LOCATION_ID) AS ACCT_ID, c.CST_NAME " \
+          "FROM " + org_db + ".account AS a " \
+          "INNER JOIN " + org_db + ".branch AS b ON b.BRANCH_ID = a.BRANCH_ID " \
+          "INNER JOIN " + org_db + ".customer AS c ON a.CUSTOMER_ID = c.CUSTOMER_ID " \
+          "INNER JOIN " + org_db + ".tanks AS t ON t.ACCT_ID = a.ACCT_ID " \
+          "WHERE b.BRANCH_ID = \'%s\' AND concat(c.CST_ID, a.ACCOUNT_LOCATION_ID) LIKE \'%s\'" \
+          "GROUP BY concat(c.CST_ID, a.ACCOUNT_LOCATION_ID), c.CST_NAME" \
+          % (branches['BRANCH_ID'].iat[branch], "%" + partial_account + "%")
+
+    accounts = panda.read_sql(sql, new_connection)
+
+    print(accounts)
+
+    account = get_input("Select Account", 0, len(accounts) - 1)
+
+    print("Selected branch:", accounts.iat[account])
+
     input()
 
 
@@ -231,7 +254,6 @@ def logout(new_connection, org_db, driver_id, truck_id):
         new_connection.commit()
 
         print("Driver Logged Out successfully")"""
-
 
 if __name__ == '__main__':
     while True:
