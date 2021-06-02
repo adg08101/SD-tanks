@@ -152,8 +152,11 @@ def proc(connection, new_connection, org_db):
 
     while True:
         accounts = get_partial_account(new_connection, org_db, branches, branch)
-        if len(accounts) > 50:
+
+        if int(accounts.shape[0]) > 10:
             print("Too many results, be more precise on account ID")
+        elif int(accounts.shape[0]) == 0:
+            print("No results, be more precise on account ID")
         else:
             break
 
@@ -166,14 +169,16 @@ def proc(connection, new_connection, org_db):
     print("Selected account:")
     print(accounts.iloc[account])
 
-    sql = "SELECT TANK_ID, SIZE, SERIAL_NUMBER, IS_ACTIVE " \
+    sql = "SELECT TANK_ID, SIZE, SERIAL_NUMBER, IS_ACTIVE, SIZE * CAST(IS_ACTIVE AS UNSIGNED) AS ACTUAL_SIZE " \
           "FROM " + org_db + ".tanks AS t " \
           "WHERE t.ACCT_ID = \'%s\' " \
           % account_id
 
     tanks = panda.read_sql(sql, new_connection)
 
-    print(tanks)
+    print(tanks[['SIZE', 'SERIAL_NUMBER', 'IS_ACTIVE']])
+    print("Total available capacity:", tanks['ACTUAL_SIZE'].sum())
+    print("Total capacity:", tanks['SIZE'].sum())
 
     tank = get_input("Select Tank", 0, len(tanks) - 1)
 
