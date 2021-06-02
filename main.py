@@ -90,9 +90,9 @@ def main_proc(p_host=HOST, p_user=USER, p_password=PASSWORD, p_db=DB, p_port=POR
 
 def proc(connection, new_connection, org_db):
     sql = "SELECT b.BRANCH_ID, b.BRANCH_NAME FROM " + org_db + ".branch AS b " \
-          "INNER JOIN " + org_db + ".account AS a ON a.BRANCH_ID = b.BRANCH_ID " \
-          "INNER JOIN " + org_db + ".tanks AS t ON a.ACCT_ID = t.ACCT_ID " \
-          "GROUP BY b.BRANCH_NAME "
+                                                               "INNER JOIN " + org_db + ".account AS a ON a.BRANCH_ID = b.BRANCH_ID " \
+                                                                                        "INNER JOIN " + org_db + ".tanks AS t ON a.ACCT_ID = t.ACCT_ID " \
+                                                                                                                 "GROUP BY b.BRANCH_NAME "
 
     branches = panda.read_sql(sql, new_connection)
 
@@ -102,26 +102,36 @@ def proc(connection, new_connection, org_db):
 
     print("Selected branch:", branches['BRANCH_NAME'].iat[branch])
 
+    while True:
+        accounts = get_partial_account(new_connection, org_db, branches, branch)
+        if len(accounts) > 50:
+            print("Too many results, be more precise on account ID")
+        else:
+            break
+
+    print(accounts[['CST_ID_ACCOUNT_LOCATION_ID', 'CST_NAME']])
+
+    account = get_input("Select Account", 0, len(accounts) - 1)
+
+    print("Selected account:", accounts['ID'].iat[account])
+
+    input()
+
+
+def get_partial_account(new_connection, org_db, branches, branch):
     partial_account = input("Enter Account ID: ")
 
-    sql = "SELECT concat(c.CST_ID, a.ACCOUNT_LOCATION_ID) AS ACCT_ID, c.CST_NAME " \
+    sql = "SELECT a.ACCT_ID AS ID, c.CST_ID, a.ACCOUNT_LOCATION_ID, CONCAT(c.CST_ID, a.ACCOUNT_LOCATION_ID) AS " \
+          "CST_ID_ACCOUNT_LOCATION_ID, c.CST_NAME " \
           "FROM " + org_db + ".account AS a " \
           "INNER JOIN " + org_db + ".branch AS b ON b.BRANCH_ID = a.BRANCH_ID " \
           "INNER JOIN " + org_db + ".customer AS c ON a.CUSTOMER_ID = c.CUSTOMER_ID " \
           "INNER JOIN " + org_db + ".tanks AS t ON t.ACCT_ID = a.ACCT_ID " \
           "WHERE b.BRANCH_ID = \'%s\' AND concat(c.CST_ID, a.ACCOUNT_LOCATION_ID) LIKE \'%s\'" \
-          "GROUP BY concat(c.CST_ID, a.ACCOUNT_LOCATION_ID), c.CST_NAME" \
+          "GROUP BY a.ACCT_ID, c.CST_ID, a.ACCOUNT_LOCATION_ID, CONCAT(c.CST_ID, a.ACCOUNT_LOCATION_ID), c.CST_NAME" \
           % (branches['BRANCH_ID'].iat[branch], "%" + partial_account + "%")
 
-    accounts = panda.read_sql(sql, new_connection)
-
-    print(accounts)
-
-    account = get_input("Select Account", 0, len(accounts) - 1)
-
-    print("Selected branch:", accounts.iat[account])
-
-    input()
+    return panda.read_sql(sql, new_connection)
 
 
 def get_input(text, min_value, max_value):
