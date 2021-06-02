@@ -88,11 +88,58 @@ def main_proc(p_host=HOST, p_user=USER, p_password=PASSWORD, p_db=DB, p_port=POR
     proc(connection, NEW_CONNECTION, org_db)
 
 
+def enable_disable_tank(new_connection, org_db, tank_id):
+    sql = "SELECT IS_ACTIVE " \
+          "FROM " + org_db + ".tanks AS t " \
+                             "WHERE t.TANK_ID = \'%s\' " \
+          % tank_id
+
+    tank_status = panda.read_sql(sql, new_connection)
+
+    if tank_status['IS_ACTIVE'][0] == b'\x01':
+        sql = "UPDATE " + org_db + ".tanks " \
+                "SET IS_ACTIVE = 0 " \
+                "WHERE TANK_ID = \'%s\' " \
+                % tank_id
+
+        with new_connection.cursor() as cursor:
+            cursor.execute(sql)
+            new_connection.commit()
+            operation = 'disabled'
+    else:
+        sql = "UPDATE " + org_db + ".tanks " \
+                "SET IS_ACTIVE = 1 " \
+                "WHERE TANK_ID = \'%s\' " \
+                % tank_id
+
+        with new_connection.cursor() as cursor:
+            cursor.execute(sql)
+            new_connection.commit()
+            operation = 'enabled'
+
+    print("Tank", operation, "successfully")
+
+
+def set_tank_capacity(new_connection, org_db, tank_id):
+    capacity = get_input("Input tank new capacity", 0, 100000)
+
+    sql = "UPDATE " + org_db + ".tanks " \
+                               "SET SIZE = \'%s\' " \
+                               "WHERE TANK_ID = \'%s\' " \
+          % (capacity, tank_id)
+
+    with new_connection.cursor() as cursor:
+        cursor.execute(sql)
+        new_connection.commit()
+
+    print("Tank capacity adjusted successfully")
+
+
 def proc(connection, new_connection, org_db):
     sql = "SELECT b.BRANCH_ID, b.BRANCH_NAME FROM " + org_db + ".branch AS b " \
-                                                               "INNER JOIN " + org_db + ".account AS a ON a.BRANCH_ID = b.BRANCH_ID " \
-                                                                                        "INNER JOIN " + org_db + ".tanks AS t ON a.ACCT_ID = t.ACCT_ID " \
-                                                                                                                 "GROUP BY b.BRANCH_NAME "
+          "INNER JOIN " + org_db + ".account AS a ON a.BRANCH_ID = b.BRANCH_ID " \
+          "INNER JOIN " + org_db + ".tanks AS t ON a.ACCT_ID = t.ACCT_ID " \
+          "GROUP BY b.BRANCH_NAME "
 
     branches = panda.read_sql(sql, new_connection)
 
@@ -100,7 +147,8 @@ def proc(connection, new_connection, org_db):
 
     branch = get_input("Select Branch", 0, len(branches) - 1)
 
-    print("Selected branch:", branches['BRANCH_NAME'].iat[branch])
+    print("Selected branch:")
+    print(branches.iloc[branch])
 
     while True:
         accounts = get_partial_account(new_connection, org_db, branches, branch)
@@ -113,9 +161,44 @@ def proc(connection, new_connection, org_db):
 
     account = get_input("Select Account", 0, len(accounts) - 1)
 
-    print("Selected account:", accounts['ID'].iat[account])
+    account_id = accounts['ID'].iloc[account]
 
-    input()
+    print("Selected account:")
+    print(accounts.iloc[account])
+
+    sql = "SELECT TANK_ID, SIZE, SERIAL_NUMBER, IS_ACTIVE " \
+          "FROM " + org_db + ".tanks AS t " \
+          "WHERE t.ACCT_ID = \'%s\' " \
+          % account_id
+
+    tanks = panda.read_sql(sql, new_connection)
+
+    print(tanks)
+
+    tank = get_input("Select Tank", 0, len(tanks) - 1)
+
+    tank_id = tanks['TANK_ID'].iloc[tank]
+
+    print("Selected tank:")
+    print(tanks.iloc[tank])
+
+    operation = get_input("Select operation: (0) Disable/Enable Tank (1) Set Tank Capacity (2) Both", 0, 2)
+
+    if operation == 0:
+        enable_disable_tank(new_connection, org_db, tank_id)
+    elif operation == 1:
+        set_tank_capacity(new_connection, org_db, tank_id)
+    else:
+        enable_disable_tank(new_connection, org_db, tank_id)
+        set_tank_capacity(new_connection, org_db, tank_id)
+
+    repeat = get_input("Repeat process? (0) No / (1) Yes", 0, 1)
+    if repeat == 1:
+        main_proc(p_connection=True)
+    else:
+        connection.close()
+        new_connection.close()
+        exit(0)
 
 
 def get_partial_account(new_connection, org_db, branches, branch):
