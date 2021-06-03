@@ -40,7 +40,7 @@ def main_proc(p_host=HOST, p_user=USER, p_password=PASSWORD, p_db=DB, p_port=POR
 
         for organization in range(len(organizations)):
             sql = "SELECT ACCT_ID FROM " + organizations[organization]['sd_db_source'] + ".tanks AS t WHERE " \
-                                                                                         "t.TANK_ID IS NOT NULL LIMIT 1; "
+                  "t.TANK_ID IS NOT NULL LIMIT 1; "
 
             try:
                 cursor.execute(sql)
@@ -75,6 +75,7 @@ def main_proc(p_host=HOST, p_user=USER, p_password=PASSWORD, p_db=DB, p_port=POR
     org_db = organizations_temp[org_num]['sd_db_source']
 
     print("Selected Org =", organizations_temp[org_num]['org_name'])
+    print("\n")
 
     if not p_connection:
         new_connection = pymysql.connect(host=p_host,
@@ -121,7 +122,7 @@ def enable_disable_tank(new_connection, org_db, tank_id):
 
 
 def set_tank_capacity(new_connection, org_db, tank_id):
-    capacity = get_input("Input tank new capacity", 0, 100000)
+    capacity = get_input("Input tank new capacity", 0, 1000000)
 
     sql = "UPDATE " + org_db + ".tanks " \
                                "SET SIZE = \'%s\' " \
@@ -145,10 +146,14 @@ def proc(connection, new_connection, org_db):
 
     print(branches['BRANCH_NAME'])
 
+    print("\n")
     branch = get_input("Select Branch", 0, len(branches) - 1)
 
     print("Selected branch:")
+    print("\n")
     print(branches.iloc[branch])
+
+    account = None
 
     while True:
         accounts = get_partial_account(new_connection, org_db, branches, branch)
@@ -157,16 +162,21 @@ def proc(connection, new_connection, org_db):
             print("Too many results, be more precise on account ID")
         elif int(accounts.shape[0]) == 0:
             print("No results, be more precise on account ID")
+        elif int(accounts.shape[0]) == 1:
+            account = 0
+            break
         else:
             break
 
     print(accounts[['CST_ID_ACCOUNT_LOCATION_ID', 'CST_NAME']])
 
-    account = get_input("Select Account", 0, len(accounts) - 1)
+    if account != 0:
+        account = get_input("Select Account", 0, len(accounts) - 1)
 
     account_id = accounts['ID'].iloc[account]
 
     print("Selected account:")
+    print("\n")
     print(accounts.iloc[account])
 
     sql = "SELECT TANK_ID, SIZE, SERIAL_NUMBER, IS_ACTIVE, SIZE * CAST(IS_ACTIVE AS UNSIGNED) AS ACTUAL_SIZE " \
@@ -176,14 +186,20 @@ def proc(connection, new_connection, org_db):
 
     tanks = panda.read_sql(sql, new_connection)
 
+    print("\n")
+    print("Tank" + "s:" if int(tanks.shape[0]) > 1 else ":")
     print(tanks[['SIZE', 'SERIAL_NUMBER', 'IS_ACTIVE']])
     print("Total available capacity:", tanks['ACTUAL_SIZE'].sum())
     print("Total capacity:", tanks['SIZE'].sum())
 
-    tank = get_input("Select Tank", 0, len(tanks) - 1)
+    if int(tanks.shape[0]) == 1:
+        tank = 0
+    else:
+        tank = get_input("Select Tank", 0, len(tanks) - 1)
 
     tank_id = tanks['TANK_ID'].iloc[tank]
 
+    print("\n")
     print("Selected tank:")
     print(tanks.iloc[tank])
 
@@ -207,6 +223,7 @@ def proc(connection, new_connection, org_db):
 
 
 def get_partial_account(new_connection, org_db, branches, branch):
+    print("\n")
     partial_account = input("Enter Account ID: ")
 
     sql = "SELECT a.ACCT_ID AS ID, c.CST_ID, a.ACCOUNT_LOCATION_ID, CONCAT(c.CST_ID, a.ACCOUNT_LOCATION_ID) AS " \
